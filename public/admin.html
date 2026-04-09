@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Admin Portal – Network Diagnostics</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600;700&family=Rajdhani:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="style.css"/>
+<style>
+  body {
+    padding: 0;
+  }
+  .input-bar {
+    display: flex;
+    gap: 15px;
+    align-items: center;
+  }
+  .input-bar input {
+    background: rgba(0,0,0,0.3);
+    border: 1px solid var(--border-light);
+    color: white;
+    padding: 6px 12px;
+    border-radius: 4px;
+    font-family: 'IBM Plex Mono', monospace;
+    height: 32px;
+  }
+  .admin-content {
+    padding: 24px;
+    flex: 1;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+  }
+  .metric-val {
+    font-size: 18px;
+    color: var(--cyan);
+  }
+  .metric-label {
+    font-size: 9px;
+  }
+</style>
+</head>
+<body>
+
+<div class="topbar" style="border-radius: 0; z-index: 10;">
+  <div style="display: flex; align-items: center; gap: 2rem;">
+    <span class="chart-title" style="margin: 0;">ADMIN PORTAL</span>
+    
+    <div class="input-bar">
+      <input type="text" id="checkId" placeholder="Enter ID (e.g. 2)" />
+      <button class="run-btn" onclick="searchCheck()" style="height: 32px; padding: 0 15px;">Search</button>
+    </div>
+  </div>
+  <div class="topbar-right">
+    <button class="run-btn" onclick="logout()" style="background: rgba(255, 50, 80, 0.15); color: var(--red); border-color: rgba(255, 50, 80, 0.4);">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 4px;">
+        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+        <polyline points="16 17 21 12 16 7"></polyline>
+        <line x1="21" y1="12" x2="9" y2="12"></line>
+      </svg>
+      Logout
+    </button>
+  </div>
+</div>
+
+<div class="admin-content">
+  <div class="panel" style="display: none;" id="result-card">
+    <div class="panel-header">
+      <span class="panel-title" style="color: var(--text);">CHECK RESULT: <span id="r-id" style="color: var(--cyan);">—</span></span>
+      <span style="color: var(--dim); margin-left: auto; font-size: 11px; font-family: var(--mono);" id="r-time">—</span>
+    </div>
+
+    <!-- Metrics strip mimicking main dashboard -->
+    <div class="metrics-strip" style="border-radius: 0; border: none; border-bottom: 1px solid var(--border); max-width: none;">
+      <div class="metric-pill">
+        <span class="metric-label">USER IP</span>
+        <span class="metric-val" id="r-ip" style="color: var(--white);">—</span>
+      </div>
+      <div class="metric-sep"></div>
+      <div class="metric-pill">
+        <span class="metric-label">LATENCY AVG</span>
+        <span class="metric-val" id="r-lat-avg">—</span>
+      </div>
+      <div class="metric-sep"></div>
+      <div class="metric-pill">
+        <span class="metric-label">LAT MIN / MAX</span>
+        <span class="metric-val" id="r-lat-minmax" style="color: var(--white); font-size: 15px;">—</span>
+      </div>
+      <div class="metric-sep"></div>
+      <div class="metric-pill">
+        <span class="metric-label">JITTER</span>
+        <span class="metric-val" id="r-jit">—</span>
+      </div>
+      <div class="metric-sep"></div>
+      <div class="metric-pill">
+        <span class="metric-label">PACKET LOSS</span>
+        <span class="metric-val" id="r-loss">—</span>
+      </div>
+      <div class="metric-sep"></div>
+      <div class="metric-pill" style="align-items: flex-end; padding-right: 20px;">
+        <span class="metric-label">DOWNLOAD</span>
+        <span class="metric-val" id="r-dl" style="color: var(--white);">—</span>
+      </div>
+    </div>
+
+    <div class="panel-header">
+      <span class="panel-title">PATH TRACE LOG</span>
+    </div>
+    
+    <div class="tr-table-wrap" style="flex: 1;">
+       <table class="tr-table">
+          <thead>
+            <tr>
+              <th>HOP</th>
+              <th>IP ADDRESS</th>
+              <th>LATENCY</th>
+              <th>STATUS</th>
+            </tr>
+          </thead>
+          <tbody id="r-trace-body">
+            <!-- Table rows injected via JS -->
+          </tbody>
+       </table>
+    </div>
+  </div>
+</div>
+
+<script>
+async function searchCheck() {
+  const id = document.getElementById("checkId").value;
+  if (!id) {
+    alert("Enter Check ID");
+    return;
+  }
+  try {
+    const res = await fetch(`/result/${id}`);
+    if (!res.ok) throw new Error("Not found");
+    const data = await res.json();
+    displayResult(data);
+    document.getElementById("checkId").value = "";
+  } catch (err) {
+    alert("Check not found");
+  }
+}
+
+function displayResult(data) {
+  document.getElementById("result-card").style.display = 'flex';
+  document.getElementById("r-id").textContent = data.check_id;
+  
+  const t = new Date(data.timestamp);
+  document.getElementById("r-time").textContent = t.toLocaleDateString() + ' ' + t.toLocaleTimeString();
+  
+  document.getElementById("r-ip").textContent = data.user_ip;
+  document.getElementById("r-lat-avg").textContent = data.latency_avg != null ? `${data.latency_avg} ms` : '—';
+  
+  if (data.latency_avg != null) {
+    document.getElementById("r-lat-minmax").textContent = `${data.latency_min} / ${data.latency_max} ms`;
+  } else {
+    document.getElementById("r-lat-minmax").textContent = '—';
+  }
+  
+  document.getElementById("r-jit").textContent = data.jitter != null ? `${data.jitter} ms` : '—';
+  
+  const lossNode = document.getElementById("r-loss");
+  lossNode.textContent = data.packet_loss != null ? `${data.packet_loss}%` : '—';
+  lossNode.style.color = (data.packet_loss && data.packet_loss > 0) ? "var(--red)" : "var(--green)";
+  if (data.packet_loss == null) lossNode.style.color = "var(--cyan)";
+  
+  document.getElementById("r-dl").textContent = data.download_speed ? `${data.download_speed.toFixed(1)} Mbps` : '—';
+  
+  const tb = document.getElementById("r-trace-body");
+  tb.innerHTML = '';
+  
+  if (data.traceroute) {
+    let raw = data.traceroute;
+    try {
+      const parsed = JSON.parse(data.traceroute);
+      if (parsed.hops) {
+        parsed.hops.forEach(h => {
+          let tr = document.createElement('tr');
+          let ip = h.ip === '*' ? '* * *' : h.ip;
+          let ms = h.ms ? `${h.ms} ms` : '*';
+          
+          let badge = '';
+          if (h.ms == null) badge = `<span class="hop-badge warn">TIMEOUT</span>`;
+          else if (h.ms > 150) badge = `<span class="hop-badge bad">HIGH</span>`;
+          else badge = `<span class="hop-badge ok">OK</span>`;
+          
+          tr.innerHTML = `
+            <td>${h.hop}</td>
+            <td>${ip}</td>
+            <td class="${h.ms == null ? 'hop-timeout' : ''}">${ms}</td>
+            <td>${badge}</td>
+          `;
+          tb.appendChild(tr);
+        });
+        return;
+      }
+    } catch (e) {
+      // Fallback below
+    }
+    // Fallback: render raw string as pre
+    tb.innerHTML = `<tr><td colspan="4" style="padding: 15px;"><pre style="font-family: var(--mono); color: var(--text2); font-size: 11px; white-space: pre-wrap;">${raw}</pre></td></tr>`;
+  } else {
+    tb.innerHTML = `<tr><td colspan="4" class="tr-empty">No traceroute recorded.</td></tr>`;
+  }
+}
+
+async function logout() {
+  await fetch('/logout', { method: 'POST' });
+  window.location.href = "/login.html";
+}
+
+// Add enter key listener
+document.getElementById("checkId").addEventListener("keypress", function(event) {
+  if (event.key === "Enter") {
+    event.preventDefault();
+    searchCheck();
+  }
+});
+</script>
+</body>
+</html>

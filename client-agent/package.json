@@ -1,0 +1,17 @@
+{
+  "name": "network-checker",
+  "version": "1.0.0",
+  "description": "Windows network diagnostic tool",
+  "main": "index.js",
+  "bin": "index.js",
+  "scripts": {
+    "build": "pkg index.js --targets node18-win-x64 --output network-checker.exe",
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "axios": "^1.6.8"
+  },
+  "devDependencies": {
+    "pkg": "^5.8.1"
+  }
+}
