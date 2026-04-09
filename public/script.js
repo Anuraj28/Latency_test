@@ -177,20 +177,18 @@ async function doPing() {
   const ctrl    = new AbortController();
   const timeout = setTimeout(() => ctrl.abort(), PING_TIMEOUT);
 
+  const t0 = performance.now();
   try {
     const r = await fetch(`/ping?_=${ts}`, {
+      method: 'GET',
       cache: 'no-store',
       signal: ctrl.signal
     });
     
     clearTimeout(timeout);
     if (!r.ok) throw new Error("bad ping");
-    const data = await r.json();
-    if (data.ok && data.ms !== undefined) {
-      ms = data.ms;
-    } else {
-      lost = true;
-    }
+    await r.json(); // ensure response is consumed
+    ms = performance.now() - t0;
   } catch (_) {
     lost = true;
   }
@@ -465,8 +463,8 @@ function runUpload() {
     const xhr = new XMLHttpRequest();
     xhr.open('POST', `/upload?_=${Date.now()}`, true);
     
-    // Generate ~10MB payload string
-    const payloadSize = 10 * 1024 * 1024;
+    // Generate ~2.5MB payload string to avoid default proxy restrictions
+    const payloadSize = 2.5 * 1024 * 1024;
     const payload = new Blob([new Uint8Array(payloadSize)]);
 
     xhr.timeout = 30000;

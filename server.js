@@ -92,31 +92,10 @@ function clientIP(req) {
   return ip;
 }
 
-const TARGET_IP = '170.178.144.238';
-
 // ── /ping ───────────────────────────────────────
 app.get('/ping', (_, res) => {
   res.set('Cache-Control', 'no-store');
-  const isWin = os.platform() === 'win32';
-  const cmd = isWin ? `ping -n 1 -w 2000 ${TARGET_IP}` : `ping -c 1 -W 2 ${TARGET_IP}`;
-
-  exec(cmd, (err, stdout) => {
-    let pingTime = null;
-    if (!err && stdout) {
-      const match = isWin 
-        ? stdout.match(/time[=|<](\d+)\s*ms/i) 
-        : stdout.match(/time=([\d.]+)\s*ms/i);
-      if (match && match[1]) {
-        pingTime = parseFloat(match[1]);
-      }
-    }
-    
-    if (pingTime !== null) {
-      res.json({ ok: true, ms: Math.round(pingTime * 10) / 10 });
-    } else {
-      res.status(504).json({ ok: false });
-    }
-  });
+  res.json({ ok: true });
 });
 
 // ── /my-ip ────────────────────────────────────────────────────────
@@ -137,22 +116,24 @@ app.get('/download', (_, res) => {
 
 // ── /upload ───────────────────────────────────────────────────────
 app.post('/upload', (req, res) => {
-  res.json({ ok: true });
+  req.on('data', () => {});
+  req.on('end', () => res.json({ ok: true }));
 });
 
 // ── /traceroute ───────────────────────────────────────────────────
 app.get('/traceroute', (req, res) => {
   const isWin = os.platform() === 'win32';
+  const targetIp = clientIP(req);
   const cmd   = isWin
-    ? `tracert -d -h 20 ${TARGET_IP}`
-    : `traceroute -n -m 20 -w 2 ${TARGET_IP}`;
+    ? `tracert -d -h 20 ${targetIp}`
+    : `traceroute -n -m 20 -w 2 ${targetIp}`;
 
   res.set({ 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
 
   exec(cmd, { timeout: 60000 }, (err, stdout, stderr) => {
     const raw = stdout || stderr || (err?.message ?? 'Traceroute failed');
     const hops = parseTraceroute(raw, isWin);
-    res.json({ raw, hops, target: TARGET_IP });
+    res.json({ raw, hops, target: targetIp });
   });
 });
 
